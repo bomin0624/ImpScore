@@ -38,23 +38,24 @@ class ImpModel(nn.Module):
 
         self.initialize_weights()
 
-        self.margin1 = float(train_args.margin1)
-        self.margin2 = float(train_args.margin2)
-        self.alpha = float(train_args.alpha)
+        self.margin1 = float(train_args.margin1) # default 0.5
+        self.margin2 = float(train_args.margin2) # default 0.7
+        self.alpha = float(train_args.alpha) # default 1.0
 
+# Initialize the network's weight, using the xavier uniform initialization
     def initialize_weights(self):
         if self.transform_direct in ['p2s', 's2p']:
             for m in [self.weight_p, self.weight_s, self.weight_t]:
-                if isinstance(m, nn.Linear):
+                if isinstance(m, nn.Linear): # check the target is the correct type or not, return true or false
                     init.xavier_uniform_(m.weight)
                     if m.bias is not None:
                         init.constant_(m.bias, 0)
         else:
-            for m in [self.weight_p, self.weight_s, self.weight_t_p, self.weight_t_s]:
+            for m in [self.weight_p, self.weight_s, self.weight_t_p, self.weight_t_s]: # two way transformation, mapping the pragmatic and semantic to the same space
                 if isinstance(m, nn.Linear):
                     init.xavier_uniform_(m.weight)
                     if m.bias is not None:
-                        init.constant_(m.bias, 0)
+                        init.constant_(m.bias, 0) # initialize the bias to zero
 
     def calculate_imp_scores(self, statement1, statement2):
         # shape of statement1 and statement2: (batch_size, seq_length)
@@ -62,10 +63,12 @@ class ImpModel(nn.Module):
         # generate text embeddings for statement1 and statement2
         sent_bert_emb1 = self.encoder.encode(statement1, show_progress_bar=False)
         sent_bert_emb2 = self.encoder.encode(statement2, show_progress_bar=False)
-
+        
+        # transfer the numpy array to tensor
         sent_bert_emb1 = torch.tensor(sent_bert_emb1, dtype=torch.float32).to(self.device)
         sent_bert_emb2 = torch.tensor(sent_bert_emb2, dtype=torch.float32).to(self.device)
 
+        # Check the dimension is correct or not
         assert sent_bert_emb1.shape[1] == self.weight_p.in_features, "Mismatch in embedding size"
         assert sent_bert_emb2.shape[1] == self.weight_s.in_features, "Mismatch in embedding size"
 
@@ -82,9 +85,9 @@ class ImpModel(nn.Module):
             map_emb1 = self.weight_t(prag_emb1)
             map_emb2 = self.weight_t(prag_emb2)
             if self.imp_metric == 'euc':
-                imp_score1 = torch.norm(sem_emb1 - map_emb1, dim=1)
+                imp_score1 = torch.norm(sem_emb1 - map_emb1, dim=1) # Euclidean distance
                 imp_score2 = torch.norm(sem_emb2 - map_emb2, dim=1)
-            else:  # higher implicit score means smaller distance
+            else:  # higher implicit score means larger distance between spaces
                 imp_score1 = 1.0 - F.cosine_similarity(sem_emb1, map_emb1, dim=1)
                 imp_score2 = 1.0 - F.cosine_similarity(sem_emb2, map_emb2, dim=1)
         elif self.transform_direct == 's2p':
@@ -126,16 +129,16 @@ class ImpModel(nn.Module):
         """
         assert pos_pair.shape[0] == neg_pair.shape[0], "Batch size mismatch between pos_pair and neg_pair"
 
-        pos1, pos2 = pos_pair[:, 0], pos_pair[:, 1]
+        pos1, pos2 = pos_pair[:, 0], pos_pair[:, 1] # Every positive rows' column zero & one
         neg1, neg2 = neg_pair[:, 0], neg_pair[:, 1]
 
         imp_score_pos1, imp_score_pos2, prag_dis_pos = self.calculate_imp_scores(pos1, pos2)
         imp_score_neg1, imp_score_neg2, prag_dis_neg = self.calculate_imp_scores(neg1, neg2)
 
-        # calculate losses using pairwise ranking loss
+        # calculate losses using pairwise ranking loss, Refer to the paper's Chapter 3.1
         loss_imp_pos = torch.mean(torch.clamp(self.margin1 - (imp_score_pos1 - imp_score_pos2), min=0))
         loss_imp_neg = torch.mean(torch.clamp(self.margin1 - (imp_score_neg1 - imp_score_neg2), min=0))
-
+        # Refer to the Chapter 3.3
         loss_prag = torch.mean(torch.clamp(self.margin2 - (prag_dis_neg - prag_dis_pos), min=0))
 
         final_loss = (loss_imp_pos + loss_imp_neg) + self.alpha * loss_prag
