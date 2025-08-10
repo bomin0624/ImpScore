@@ -1,8 +1,9 @@
-import numpy as np
 import logging
 import os
-import pandas as pd
 import random
+
+import numpy as np
+import pandas as pd
 
 
 class LoadDataset:
@@ -32,11 +33,11 @@ class LoadDataset:
         test_num = total_num - train_num - valid_num
 
         # randomly select training set
-        train_index = random.sample(range(total_num), train_num)
+        train_index = random.sample(range(total_num), train_num) # random sample the train num from the total dataset
         valid_index = random.sample(list(set(range(total_num)) - set(train_index)), valid_num)
         test_index = list(set(range(total_num)) - set(train_index) - set(valid_index))
 
-        train_df = self.total_df.iloc[train_index]
+        train_df = self.total_df.iloc[train_index] # input list of training data indexes
         valid_df = self.total_df.iloc[valid_index]
         test_df = self.total_df.iloc[test_index]
 

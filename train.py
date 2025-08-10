@@ -1,14 +1,16 @@
-from torch import optim
-from model import ImpModel
-from load_dataset import LoadDataset
 import argparse
-import time
-from utils import *
-import os
-import json
-import tqdm
 import csv
+import json
+import os
 import random
+import time
+
+import tqdm
+from torch import optim
+
+from load_dataset import LoadDataset
+from model import ImpModel
+from utils import *
 
 
 def generate_train_batches(train_pairs, batch_size, shuffle=True):
@@ -20,7 +22,7 @@ def generate_train_batches(train_pairs, batch_size, shuffle=True):
     :return: list
     """
     if shuffle:
-        np.random.shuffle(train_pairs)
+        np.random.shuffle(train_pairs) # shuffle to avoid learning data order patterns
 
     batches = []
     for i in range(0, len(train_pairs), batch_size):
@@ -219,7 +221,7 @@ if __name__ == '__main__':
                         imp_loss, imp_scores1, imp_scores2, prag_distances = model.test(sentences1, sentences2)
                         valid_loss += imp_loss.item()
                         prag_distances = [p.item() for p in prag_distances]
-                        valid_prag_distances_list.extend(prag_distances)
+                        valid_prag_distances_list.extend(prag_distances) # put the array's elements into the list (list + N)
                         for score1, score2 in zip(imp_scores1, imp_scores2):
                             valid_score1_list.append(score1.item())
                             valid_score2_list.append(score2.item())
